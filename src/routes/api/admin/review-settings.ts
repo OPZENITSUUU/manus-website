@@ -1,0 +1,6 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { getAdmin, sameOrigin } from "../../../lib/admin-auth.server";
+import { bindings } from "../../../lib/bindings.server";
+const Schema=z.object({rating:z.number().min(0).max(5),review_count:z.number().int().min(0).max(9999999)});
+export const Route=createFileRoute("/api/admin/review-settings")({server:{handlers:{POST:async({request})=>{if(!sameOrigin(request))return Response.json({ok:false},{status:403});if(!await getAdmin(request))return Response.json({ok:false},{status:401});const {DB}=bindings();if(!DB)return Response.json({ok:false},{status:503});let input;try{input=Schema.parse(await request.json());}catch{return Response.json({ok:false,code:"invalid_input"},{status:400});}await DB.batch([DB.prepare("INSERT INTO site_settings(key,value,updated_at) VALUES(?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=datetime('now')").bind("google_rating",input.rating.toFixed(1)),DB.prepare("INSERT INTO site_settings(key,value,updated_at) VALUES(?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=datetime('now')").bind("google_review_count",String(input.review_count))]);return Response.json({ok:true});}}}});

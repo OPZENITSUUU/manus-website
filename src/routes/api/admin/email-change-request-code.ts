@@ -1,0 +1,6 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { getAdmin, issueEmailChangeCode, sameOrigin } from "../../../lib/admin-auth.server";
+import { sendAdminEmailChangeCode } from "../../../lib/mail.server";
+const Schema=z.object({newEmail:z.string().email().max(254)});
+export const Route=createFileRoute("/api/admin/email-change-request-code")({server:{handlers:{POST:async({request})=>{if(!sameOrigin(request))return Response.json({ok:false},{status:403});const admin=await getAdmin(request);if(!admin)return Response.json({ok:false,code:"unauthorized"},{status:401});let input;try{input=Schema.parse(await request.json());}catch{return Response.json({ok:false,code:"invalid_email"},{status:400});}const result=await issueEmailChangeCode(admin.id,input.newEmail);if(result.error==="invalid_email")return Response.json({ok:false,code:"gmail_only"},{status:400});if(result.error==="same_email")return Response.json({ok:false,code:"same_email"},{status:400});if(result.error==="cooldown")return Response.json({ok:false,code:"cooldown"},{status:429});if(!result.code)return Response.json({ok:false},{status:400});try{await sendAdminEmailChangeCode(admin.email,result.code,input.newEmail.trim().toLowerCase());return Response.json({ok:true});}catch{return Response.json({ok:false,code:"email_not_configured"},{status:503});}}}}});
