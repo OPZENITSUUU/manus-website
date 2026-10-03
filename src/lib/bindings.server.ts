@@ -1,10 +1,6 @@
-// Server-only access to this app's Cloudflare bindings. Each is present ONLY if
-// opted into via app.manifest.json (D1 `DB`, R2 `STORAGE`, KV `KV`, and the
-// container `CONTAINER`) — so the accessors are optional; guard before use.
-// `cloudflare:workers` is the Workers-runtime module that exposes the Worker
-// env (bindings) — usable inside any server-side code (server functions,
-// server routes). It is NOT bundled; the runtime provides it.
-import { env } from "cloudflare:workers";
+// Server-only access to runtime bindings. Cloudflare Workers provides a global
+// `env` object, while Vercel/Nitro provides process.env. Keeping this adapter
+// runtime-neutral lets the same app build on both platforms.
 // Import the binding types directly — NOT via the global tsconfig `types` list,
 // which would clobber the DOM globals the client/SSR React code relies on.
 import type {
@@ -31,5 +27,12 @@ type AppEnv = {
 };
 
 export function bindings(): AppEnv {
-  return env as unknown as AppEnv;
+  const workerEnv = (globalThis as typeof globalThis & { env?: unknown }).env;
+  if (workerEnv && typeof workerEnv === "object") return workerEnv as AppEnv;
+
+  if (typeof process !== "undefined" && process.env) {
+    return process.env as unknown as AppEnv;
+  }
+
+  return {};
 }
